@@ -1,0 +1,7 @@
+flask>=3.0.0
+gunicorn>=21.2.0
+boto3>=1.34.0
+# Future: add ML libraries here when upgrading from keyword-based to model-based analysis
+# scikit-learn>=1.4.0
+# transformers>=4.38.0
+# torch>=2.2.0

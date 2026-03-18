@@ -1,0 +1,187 @@
+# =============================================================
+# .github/workflows/deploy.yml
+#
+# AI Document Analysis Service — GitHub Actions Deploy Workflow
+#
+# Trigger: every push to the 'main' branch
+#
+# What it does:
+#   1. Checks out the code
+#   2. Builds the React frontend (npm run build)
+#   3. Builds the Java API (mvn package)
+#   4. Runs basic smoke checks
+#   5. SCPs all built artifacts to EC2
+#   6. SSH into EC2 and restarts all services
+#
+# Required GitHub Secrets (Settings → Secrets → Actions):
+#   EC2_HOST       → e.g. ec2-54-x-x-x.compute-1.amazonaws.com
+#   EC2_USER       → ec2-user
+#   EC2_SSH_KEY    → contents of your .pem private key file
+#   S3_BUCKET_NAME → your S3 bucket name (optional, for env on EC2)
+#
+# Architecture stays unchanged:
+#   - Single EC2 (t3.micro)
+#   - SQLite on EC2 (untouched by this workflow)
+#   - S3 accessed by EC2 via IAM role (no keys in workflow)
+#   - Nginx, Java, Python, React all stay the same
+# =============================================================
+
+name: Build and Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+  # Allow manual trigger from GitHub Actions UI
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    name: Build → Deploy to EC2
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # ── 1. Checkout source code ────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Set up Node.js and build React frontend ─────────────
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci --silent
+
+      - name: Build React frontend
+        working-directory: frontend
+        run: npm run build --silent
+
+      # ── 3. Set up Java 17 and build the JAR ───────────────────
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'corretto'
+          cache: 'maven'
+
+      - name: Build Java API (skip tests for speed)
+        working-directory: java-api
+        run: mvn clean package -DskipTests -q
+
+      # ── 4. Basic smoke checks ─────────────────────────────────
+      - name: Verify React build output exists
+        run: |
+          if [ ! -d "frontend/build" ]; then
+            echo "ERROR: React build directory not found!"
+            exit 1
+          fi
+          echo "✓ React build OK ($(du -sh frontend/build | cut -f1))"
+
+      - name: Verify Java JAR exists
+        run: |
+          JAR=$(ls java-api/target/java-api-*.jar 2>/dev/null | head -n 1)
+          if [ -z "$JAR" ]; then
+            echo "ERROR: Java JAR not found in java-api/target/"
+            exit 1
+          fi
+          echo "✓ Java JAR OK: $JAR ($(du -sh $JAR | cut -f1))"
+
+      - name: Check Python syntax
+        run: python3 -m py_compile python-ai/app.py && echo "✓ Python syntax OK"
+
+      # ── 5. Set up SSH key for EC2 access ─────────────────────
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          # Disable strict host checking so the first-time connection doesn't hang
+          echo "StrictHostKeyChecking no" >> ~/.ssh/config
+
+      # ── 6. Copy all built files to EC2 ───────────────────────
+      - name: Copy Java JAR to EC2
+        run: |
+          JAR=$(ls java-api/target/java-api-*.jar | head -n 1)
+          scp -i ~/.ssh/deploy_key \
+              "$JAR" \
+              "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/opt/myproject/java-api/java-api-1.0.0.jar"
+          echo "✓ Java JAR copied"
+
+      - name: Copy Python AI service to EC2
+        run: |
+          scp -i ~/.ssh/deploy_key \
+              python-ai/app.py \
+              python-ai/requirements.txt \
+              "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/opt/myproject/python-ai/"
+          echo "✓ Python files copied"
+
+      - name: Copy React build to EC2
+        run: |
+          scp -i ~/.ssh/deploy_key -r \
+              frontend/build/. \
+              "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/opt/myproject/frontend/build/"
+          echo "✓ React build copied"
+
+      - name: Copy Nginx config to EC2
+        run: |
+          scp -i ~/.ssh/deploy_key \
+              nginx/nginx.conf \
+              "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/tmp/nginx.conf"
+          echo "✓ Nginx config copied"
+
+      - name: Copy start-services script to EC2
+        run: |
+          scp -i ~/.ssh/deploy_key \
+              scripts/start-services.sh \
+              "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/opt/myproject/scripts/start-services.sh"
+          echo "✓ start-services.sh copied"
+
+      # ── 7. SSH into EC2: install deps and restart services ───
+      - name: Deploy and restart services on EC2
+        run: |
+          ssh -i ~/.ssh/deploy_key "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" << 'REMOTE'
+            set -e
+
+            echo "--- Installing Python dependencies ---"
+            cd /opt/myproject/python-ai
+            pip3 install -r requirements.txt -q
+            echo "    ✓ Python dependencies installed"
+
+            echo "--- Validating and applying Nginx config ---"
+            sudo cp /tmp/nginx.conf /etc/nginx/nginx.conf
+            sudo nginx -t
+            echo "    ✓ Nginx config valid"
+
+            echo "--- Making start script executable ---"
+            chmod +x /opt/myproject/scripts/start-services.sh
+
+            echo "--- Restarting all services ---"
+            sudo /opt/myproject/scripts/start-services.sh
+
+            echo "--- Verifying services are up ---"
+            sleep 5
+            curl -sf http://localhost:8080/api/health > /dev/null && echo "    ✓ Java API healthy" || echo "    ⚠ Java API not responding yet"
+            curl -sf http://localhost:5000/health > /dev/null && echo "    ✓ Python AI healthy" || echo "    ⚠ Python AI not responding yet"
+          REMOTE
+
+      # ── 8. Clean up SSH key ───────────────────────────────────
+      - name: Clean up SSH key
+        if: always()   # runs even if previous steps failed
+        run: rm -f ~/.ssh/deploy_key
+
+      # ── 9. Print the app URL ──────────────────────────────────
+      - name: Deployment summary
+        run: |
+          echo "=============================================="
+          echo "  ✅  Deployment complete!"
+          echo "  App:  http://${{ secrets.EC2_HOST }}"
+          echo "  API:  http://${{ secrets.EC2_HOST }}/api/health"
+          echo "  AI:   http://${{ secrets.EC2_HOST }}/ai/health"
+          echo "=============================================="

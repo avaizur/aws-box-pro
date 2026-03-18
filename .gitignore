@@ -1,0 +1,38 @@
+# =============================================================
+# .gitignore — AI Document Analysis Service
+# =============================================================
+
+# Terraform secrets — NEVER commit these
+terraform/terraform.tfvars
+
+# GitHub Actions workflow IS committed (.github/ is tracked)
+# Sensitive values go in GitHub Secrets, NOT in workflow YAML
+# Settings → Secrets and variables → Actions → New repository secret
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+
+# Java build artifacts
+java-api/target/
+
+# React build artifacts
+frontend/build/
+frontend/node_modules/
+
+# Python
+__pycache__/
+*.pyc
+python-ai/.venv/
+
+# SQLite database (EC2 runtime files)
+data/*.db
+
+# Logs
+logs/*.log
+
+# OS / editor
+.DS_Store
+.idea/
+*.iml
+.vscode/
