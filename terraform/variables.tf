@@ -27,7 +27,7 @@ variable "ec2_instance_type" {
 }
 
 variable "ec2_key_name" {
-  description = "Name of the EC2 key pair (must exist in AWS already)."
+  description = "aws-proj-17326.pem"
   type        = string
   # No default — you must supply this in terraform.tfvars
 }
