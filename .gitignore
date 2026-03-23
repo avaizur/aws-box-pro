@@ -37,3 +37,10 @@ logs/*.log
 *.iml
 .vscode/
 .vs/
+
+# Local credentials and secrets
+.env
+.env.*
+*.pem
+*.ppk
+
