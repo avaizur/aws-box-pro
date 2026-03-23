@@ -52,8 +52,8 @@ echo "  React frontend started (PID $!)"
 
 # ── Nginx ────────────────────────────────────────────────────
 echo "--- Reloading Nginx ---"
-sudo systemctl reload nginx
-echo "  Nginx reloaded"
+sudo systemctl restart nginx
+echo "  Nginx restarted"
 
 echo ""
 echo "==================================================="
