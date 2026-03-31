@@ -13,13 +13,13 @@ This project is designed to be minimal, cheap, beginner-friendly, and easy to ex
 
 | Step | What Happens |
 |---|---|
-| User submits text or uploads a file | Via the React frontend |
-| Java API receives the request | Validates input, orchestrates the workflow |
+| User submits text or uploads a file | Via the React frontend (PDF, Word, Text supported) |
+| Java API receives the request | Validates input, extracts text via Apache Tika |
 | Java calls the Python AI service | Sends text via internal HTTP call |
-| Python analyses the document | Returns: summary, word count, classification |
-| Java stores result in SQLite | Persists request + result locally on EC2 |
+| Python analyses the document | Returns: summary, classification, and PII detection |
+| Java stores result in SQLite | Persists request + result (including sensitive data flags) |
 | Java optionally uploads to S3 | Stores the original file or exported report |
-| Frontend displays the result | Summary card with classification badge |
+| Frontend displays the result | Summary card with PII warnings and category badges |
 
 ---
 
@@ -155,11 +155,11 @@ terraform apply
 
 After `apply`, Terraform prints:
 ```
-ec2_public_ip   = "54.x.x.x"
-ec2_public_dns  = "ec2-54-x-x-x.compute-1.amazonaws.com"
+ec2_public_ip   = "18.168.203.82"
+ec2_public_dns  = "ec2-18-168-203-82.eu-west-2.compute.amazonaws.com"
 s3_bucket_name  = "ai-doc-analysis-yourname-2026"
-ssh_command     = "ssh -i ~/.ssh/your-key.pem ec2-user@ec2-54-x-x-x.compute-1.amazonaws.com"
-app_url         = "http://54.x.x.x"
+ssh_command     = "ssh -i ~/.ssh/your-key.pem ec2-user@18.168.203.82"
+app_url         = "http://18.168.203.82"
 ```
 
 The EC2 instance automatically runs `user-data.sh` on first boot, which installs Java, Python, Nginx, Node, SQLite, AWS CLI, and creates the directory structure.
@@ -168,7 +168,7 @@ The EC2 instance automatically runs `user-data.sh` on first boot, which installs
 
 ```bash
 # From the project root:
-export EC2_HOST="ec2-54-x-x-x.compute-1.amazonaws.com"   # from terraform output
+export EC2_HOST="18.168.203.82"   # from terraform output
 export EC2_KEY="~/.ssh/your-key.pem"
 
 bash scripts/deploy.sh
@@ -185,11 +185,11 @@ bash scripts/deploy.sh
 
 ```bash
 # From outside (via Nginx):
-curl http://<EC2-IP>/api/health  # → {"status":"ok","service":"java-api"}
-curl http://<EC2-IP>/ai/health   # → {"status":"ok","service":"python-ai"}
+curl http://18.168.203.82/api/health  # → {"status":"ok","service":"java-api"}
+curl http://18.168.203.82/ai/health   # → {"status":"ok","service":"python-ai"}
 
 # Open in browser:
-http://<EC2-IP>
+http://18.168.203.82
 ```
 
 ---
@@ -209,7 +209,7 @@ http://<EC2-IP>
 
 **Example — Text analysis:**
 ```bash
-curl -X POST http://<EC2-IP>/api/analyze/text \
+curl -X POST http://18.168.203.82/api/analyze/text \
      -H "Content-Type: application/json" \
      -d '{"text": "Your document content here..."}'
 ```
@@ -229,7 +229,7 @@ curl -X POST http://<EC2-IP>/api/analyze/text \
 
 **Example — File upload:**
 ```bash
-curl -X POST http://<EC2-IP>/api/analyze/file \
+curl -X POST http://18.168.203.82/api/analyze/file \
      -F "file=@/path/to/document.txt"
 ```
 
@@ -416,6 +416,10 @@ S3_BUCKET_NAME=your-bucket bash /opt/myproject/scripts/backup-db.sh
 # Check Nginx status
 sudo systemctl status nginx
 sudo nginx -t    # test config syntax
+
+# Check Application Service (Auto-start)
+sudo systemctl status ai-doc-analysis
+sudo journalctl -u ai-doc-analysis -f  # view service logs
 ```
 
 **Terraform commands:**

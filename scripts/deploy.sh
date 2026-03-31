@@ -69,7 +69,8 @@ if [ "$SKIP_BUILD" = false ]; then
   echo ""
   echo ">>> [2/5] Building Java API..."
   cd java-api
-  mvn clean package -DskipTests -q
+  chmod +x mvnw 2>/dev/null || true
+  ./mvnw clean package -DskipTests -q
   cd ..
   echo "    ✓ Java JAR built"
 else
@@ -121,7 +122,30 @@ ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$EC2_USER@$EC2_HOST" bash << 'REM
   echo "    ✓ Nginx config valid"
 
   chmod +x /opt/myproject/scripts/start-services.sh
-  sudo /opt/myproject/scripts/start-services.sh
+  
+  # Create systemd service for auto-start on boot
+  echo "    >>> Setting up auto-start service..."
+  sudo bash -c "cat > /etc/systemd/system/ai-doc-analysis.service << EOF
+[Unit]
+Description=AI Document Analysis Service
+After=network.target nginx.service
+
+[Service]
+Type=oneshot
+User=ec2-user
+WorkingDirectory=/opt/myproject
+ExecStart=/opt/myproject/scripts/start-services.sh
+RemainAfterExit=yes
+Environment=S3_BUCKET_NAME=${S3_BUCKET_NAME}
+
+[Install]
+WantedBy=multi-user.target
+EOF"
+
+  sudo systemctl daemon-reload
+  sudo systemctl enable ai-doc-analysis.service
+  sudo systemctl restart ai-doc-analysis.service
+  echo "    ✓ Service enabled and started"
 REMOTE
 
 echo ""

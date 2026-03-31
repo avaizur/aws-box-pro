@@ -39,6 +39,9 @@ public class AnalysisResult {
     @Column(name = "processing_ms")
     private Long processingMs;
 
+    @Column(name = "pii_entities", columnDefinition = "TEXT")
+    private String piiEntities;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt = LocalDateTime.now();
 
@@ -55,5 +58,7 @@ public class AnalysisResult {
     public void setClassification(String classification) { this.classification = classification; }
     public Long getProcessingMs() { return processingMs; }
     public void setProcessingMs(Long processingMs) { this.processingMs = processingMs; }
+    public String getPiiEntities() { return piiEntities; }
+    public void setPiiEntities(String piiEntities) { this.piiEntities = piiEntities; }
     public LocalDateTime getCreatedAt() { return createdAt; }
 }

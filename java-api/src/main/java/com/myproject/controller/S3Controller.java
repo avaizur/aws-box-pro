@@ -30,7 +30,7 @@ public class S3Controller {
 
     /**
      * Upload a file to S3.
-     * Usage: curl -F "file=@myfile.pdf" http://<EC2-IP>/api/upload
+     * Usage: curl -F "file=@myfile.pdf" http://18.168.203.82/api/upload
      */
     @PostMapping("/upload")
     public ResponseEntity<Map<String, String>> upload(@RequestParam("file") MultipartFile file) {

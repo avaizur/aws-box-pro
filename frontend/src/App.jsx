@@ -101,7 +101,7 @@ export default function App() {
                 <span className="divider">or</span>
                 <label className="mode-tab file-label" htmlFor="file-input">
                   Upload File
-                  <input id="file-input" type="file" accept=".txt,.md,.csv"
+                  <input id="file-input" type="file" accept=".pdf,.docx,.doc,.txt,.md,.csv"
                     onChange={e => setSelectedFile(e.target.files[0])}
                     style={{ display: 'none' }} />
                 </label>
@@ -162,6 +162,7 @@ export default function App() {
                   <div className="history-meta">
                     {item.wordCount && <span>📝 {item.wordCount} words</span>}
                     {item.classification && <ClassBadge label={item.classification} />}
+                    <PiiSummary pii={item.piiEntities} small />
                     <button className="export-btn" onClick={() => handleExport(item.requestId)}>
                       ↑ Export to S3
                     </button>
@@ -195,6 +196,8 @@ function ResultCard({ result, onExport }) {
         <h3>📋 Summary</h3>
         <p>{result.summary}</p>
       </div>
+
+      <PiiSection pii={result.piiEntities} />
 
       <div className="result-actions">
         <button className="btn-secondary" id="export-btn" onClick={() => onExport(result.requestId)}>
@@ -230,5 +233,45 @@ function ClassBadge({ label }) {
     <span className="class-badge" style={{ backgroundColor: classColors[label] || '#6b7280' }}>
       {label}
     </span>
+  );
+}
+
+function PiiSummary({ pii, small }) {
+  if (!pii || pii === '[]') return null;
+  const count = (pii.match(/type=/g) || []).length;
+  if (count === 0) return null;
+  
+  return (
+    <span className={`pii-summary ${small ? 'small' : ''}`}>
+      ⚠️ {count} sensitive item{count > 1 ? 's' : ''}
+    </span>
+  );
+}
+
+function PiiSection({ pii }) {
+  if (!pii || pii === '[]') return null;
+  
+  // Basic parsing of Java .toString() format: [{type=email, count=1}, ...]
+  const entities = pii.replace(/[\[\]]/g, '').split('}, ').map(s => {
+    const type = s.match(/type=([^, }]+)/)?.[1];
+    const count = s.match(/count=([^, }]+)/)?.[1];
+    return { type, count };
+  }).filter(e => e.type);
+
+  if (entities.length === 0) return null;
+
+  return (
+    <div className="pii-box">
+      <h3>🔒 Sensitive Data Detected</h3>
+      <div className="pii-list">
+        {entities.map((e, i) => (
+          <div key={i} className="pii-item">
+             <span className="pii-icon">{e.type === 'email' ? '📧' : e.type === 'phone' ? '📞' : '💳'}</span>
+             <strong>{e.type.replace('_', ' ')}:</strong> {e.count} found
+          </div>
+        ))}
+      </div>
+      <p className="pii-footer">Please ensure this data is handled according to your data protection policy.</p>
+    </div>
   );
 }

@@ -62,6 +62,7 @@ def analyze():
     word_count = _count_words(text)
     classification = _classify(text)
     summary = _summarize(text)
+    pii_entities = _detect_pii(text)
 
     processing_ms = int((time.time() - start_time) * 1000)
 
@@ -69,6 +70,7 @@ def analyze():
         "summary":        summary,
         "word_count":     word_count,
         "classification": classification,
+        "pii_entities":   pii_entities,
         "processing_ms":  processing_ms,
     })
 
@@ -135,6 +137,29 @@ def _summarize(text: str, max_sentences: int = 3) -> str:
         summary = summary[:497] + "..."
 
     return summary
+
+
+def _detect_pii(text: str) -> list:
+    """
+    Identifies sensitive Personally Identifiable Information (PII).
+    Returns a list of detected entity types and counts.
+    """
+    patterns = {
+        "email":       r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}',
+        "phone":       r'(?:\+44|0)7\d{9}|\b\d{3}[-.\s]??\d{3}[-.\s]??\d{4}\b',
+        "credit_card": r'\b(?:\d{4}[ -]?){3}\d{4}\b',
+    }
+
+    results = []
+    for label, pattern in patterns.items():
+        matches = re.findall(pattern, text)
+        if matches:
+            results.append({
+                "type": label,
+                "count": len(matches)
+            })
+
+    return results
 
 
 # ── Entry Point ───────────────────────────────────────────────────────────────

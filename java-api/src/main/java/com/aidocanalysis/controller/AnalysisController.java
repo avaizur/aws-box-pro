@@ -6,6 +6,7 @@ import com.aidocanalysis.repository.AnalysisRequestRepository;
 import com.aidocanalysis.repository.AnalysisResultRepository;
 import com.aidocanalysis.service.AiServiceClient;
 import com.aidocanalysis.service.S3Service;
+import org.apache.tika.Tika;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -96,8 +97,9 @@ public class AnalysisController {
         }
 
         try {
-            // Extract text from file (basic UTF-8 text extraction)
-            String text = new String(file.getBytes(), StandardCharsets.UTF_8);
+            // Extract text from file using Apache Tika (supports PDF, Docx, etc.)
+            Tika tika = new Tika();
+            String text = tika.parseToString(file.getInputStream());
 
             // Upload original file to S3
             String s3Key = s3Service.uploadDocument(file);
@@ -128,6 +130,7 @@ public class AnalysisController {
                 entry.put("summary", r.getSummary());
                 entry.put("wordCount", r.getWordCount());
                 entry.put("classification", r.getClassification());
+                entry.put("piiEntities", r.getPiiEntities());
             }
             history.add(entry);
         }
@@ -199,6 +202,12 @@ public class AnalysisController {
             result.setWordCount(((Number) aiResponse.get("word_count")).intValue());
             result.setClassification((String) aiResponse.get("classification"));
             result.setProcessingMs(((Number) aiResponse.get("processing_ms")).longValue());
+            
+            // Convert PII list to simple string representation (JSON-like)
+            if (aiResponse.containsKey("pii_entities")) {
+                result.setPiiEntities(aiResponse.get("pii_entities").toString());
+            }
+            
             resultRepo.save(result);
 
             // 4. Update request status
@@ -224,6 +233,7 @@ public class AnalysisController {
         resp.put("summary", result.getSummary());
         resp.put("wordCount", result.getWordCount());
         resp.put("classification", result.getClassification());
+        resp.put("piiEntities", result.getPiiEntities());
         resp.put("processingMs", result.getProcessingMs());
         resp.put("createdAt", req.getCreatedAt());
         return resp;
