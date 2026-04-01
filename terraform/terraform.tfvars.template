@@ -1,0 +1,22 @@
+###############################################################
+# terraform.tfvars.template — Example variables
+# Rename this to 'terraform.tfvars' and fill in your values.
+###############################################################
+
+aws_region        = "eu-west-2"
+project_name      = "ai-doc-analysis"
+environment       = "pilot"
+ec2_instance_type = "t3.micro"
+
+# Replace with your real key pair name (must exist in AWS → EC2 → Key Pairs)
+ec2_key_name = "your-key-name-here"
+
+# Replace with YOUR public IP → find it at: https://checkip.amazonaws.com
+# Use "0.0.0.0/0" for public (less secure) or "1.2.3.4/32" for just your house.
+allowed_ssh_cidr = "0.0.0.0/0"
+
+# Must be globally unique across all of AWS.
+s3_bucket_name = "ai-doc-analysis-unique-name-2026"
+
+# Amazon Linux 2023 AMI (eu-west-2 example)
+ami_id = "ami-087c9ba923d9765d8"
