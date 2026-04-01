@@ -29,6 +29,7 @@ echo "--- Starting Java API (port 8080) ---"
 nohup java -jar "$REMOTE_DIR/java-api/$JAR_NAME" \
     --spring.datasource.url="jdbc:sqlite:$REMOTE_DIR/data/app.db" \
     --ai.service.url="http://localhost:5000" \
+    --cloud.aws.region.static="${AWS_REGION:-eu-west-2}" \
     --app.s3.bucket-name="${S3_BUCKET_NAME:-ai-doc-analysis-awsboxapp-london}" \
     --logging.file.name="$LOG_DIR/java-api.log" \
     > "$LOG_DIR/java-api-console.log" 2>&1 &
