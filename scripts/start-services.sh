@@ -41,7 +41,7 @@ sleep 2
 # ── Python Flask AI service (port 5000) ──────────────────────
 echo "--- Starting Python AI service (port 5000) ---"
 cd "$REMOTE_DIR/python-ai"
-nohup gunicorn -w 2 -b 0.0.0.0:5000 app:app \
+nohup /home/ec2-user/.local/bin/gunicorn -w 2 -b 0.0.0.0:5000 app:app \
     > "$LOG_DIR/python-ai.log" 2>&1 &
 echo "  Python AI started (PID $!)"
 
