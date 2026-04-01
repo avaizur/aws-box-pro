@@ -103,6 +103,14 @@ resource "aws_iam_role_policy" "ec2_s3_policy" {
           "${aws_s3_bucket.app_bucket.arn}/*"
         ]
       },
+      # Allow Bedrock access
+      {
+        Effect = "Allow"
+        Action = [
+          "bedrock:InvokeModel"
+        ]
+        Resource = "arn:aws:bedrock:*:*:foundation-model/*"
+      },
       # Optional: allow CloudWatch Logs agent
       {
         Effect = "Allow"

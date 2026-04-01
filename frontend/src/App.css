@@ -226,3 +226,50 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-base); color: var(
   border-radius: 4px; font-size: .75rem; font-weight: 600;
 }
 .pii-summary.small { font-size: .7rem; padding: .1rem .4rem; }
+
+/* ── Engine Selector ─────────────────────────────────────────── */
+.engine-selector {
+  margin-bottom: 1.5rem;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  padding: .75rem 1rem;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: .75rem;
+}
+.engine-selector label {
+  font-size: .8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}
+.engine-options {
+  display: flex;
+  gap: .5rem;
+}
+.engine-btn {
+  flex: 1;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: .5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: .82rem;
+  font-family: inherit;
+  transition: all .2s;
+  font-weight: 500;
+}
+.engine-btn:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+.engine-btn.active {
+  background: rgba(47, 129, 247, 0.1);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 700;
+  box-shadow: 0 0 12px rgba(47, 129, 247, 0.1);
+}

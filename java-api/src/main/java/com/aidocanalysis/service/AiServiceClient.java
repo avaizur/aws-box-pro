@@ -32,16 +32,22 @@ public class AiServiceClient {
     /**
      * Send text to the Python AI service and return the analysis result as a Map.
      *
-     * @param text The raw document text to analyse.
-     * @return Map containing: summary, word_count, classification, processing_ms
+     * @param text   The raw document text to analyse.
+     * @param engine The engine to use: "local" (default) or "bedrock".
+     * @return Map containing: summary, word_count, classification, processing_ms, engine
      */
-    public Map<String, Object> analyze(String text) {
+    public Map<String, Object> analyze(String text, String engine) {
         String url = aiServiceUrl + "/analyze";
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
-        Map<String, String> body = Map.of("text", text);
+        // Include the engine choice in the request body
+        Map<String, String> body = Map.of(
+            "text", text,
+            "engine", engine != null ? engine : "local"
+        );
+        
         HttpEntity<Map<String, String>> request = new HttpEntity<>(body, headers);
 
         ResponseEntity<Map<String, Object>> response =

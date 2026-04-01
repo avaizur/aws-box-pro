@@ -549,17 +549,45 @@ Watch the deployment live: **GitHub → Actions tab → latest run → click to 
 
 ---
 
-## Future Enhancements (Later Phases)
+---
 
-> These are intentionally out of scope for the pilot. Listed here for future planning only.
+## 🧠 Intelligence Engines (Phase 1 vs. Phase 2)
 
-- **Phase 2:** Replace keyword classification with a real ML model (scikit-learn or Hugging Face transformers)
-- **Phase 2:** Add HTTPS using a self-signed certificate or AWS Certificate Manager
-- **Phase 3:** Add user authentication (JWT or AWS Cognito)
-- **Phase 3:** Move from SQLite to PostgreSQL via Amazon RDS (when concurrency is needed)
-- **Phase 4:** Add a custom domain using Route 53
-- **Phase 4:** Add a load balancer and second EC2 instance for high availability
-- **Phase 5:** Containerise services with Docker and deploy via ECS
+This project features a **Dual-Engine Architecture** specifically designed to demonstrate the difference between basic rule-based AI and modern Foundation Models (LLMs).
+
+### 1. Local Engine (Phase 1)
+*   **Method**: Keyword-based classification and extractive (first-3-sentences) summarization.
+*   **Cost**: **$0.00** (Runs locally on your EC2 instance).
+*   **Pros**: Instantaneous (sub-50ms), zero external dependencies, perfect for privacy.
+*   **Cons**: Lacks deep understanding; can be fooled by context.
+
+### 2. AWS Bedrock Engine (Phase 2)
+*   **Method**: Uses **Claude 3 Haiku** via `boto3`.
+*   **Cost**: Pay-as-you-go (~$0.002 per document).
+*   **Pros**: Human-grade summaries, intelligent intent-based classification, context-aware PII detection (finds names/addresses that regex misses).
+*   **Cons**: Slight latency (~1.5s), requires AWS Model Access.
+
+### How to Switch
+Users can toggle between engines directly in the **Intelligence Engine** section of the dashboard. The system will record which engine was used for each analysis in the history logs.
+
+---
+
+## 🚀 Setting up Bedrock (Phase 2)
+
+To enable the Bedrock engine:
+
+1.  **Enable Model Access**: In the AWS Console (`eu-west-2`), go to **Bedrock → Model Access** and request access to **Anthropic -> Claude 3 Haiku**.
+2.  **Apply IAM Changes**: Run `terraform apply` to grant the EC2 instance `bedrock:InvokeModel` permissions.
+3.  **Redeploy**: Run `bash scripts/deploy.sh` to update the Python service logic.
+
+---
+
+## Future Enhancements
+
+- **✔️ PHASE 2 COMPLETED:** Integrated AWS Bedrock for advanced NLP.
+- **Phase 3:** Add HTTPS using AWS Certificate Manager (ACM).
+- **Phase 4:** Move from SQLite to PostgreSQL via Amazon RDS for high concurrency.
+- **Phase 5:** Add user authentication via AWS Cognito.
 
 ---
 

@@ -73,11 +73,13 @@ public class AnalysisController {
     @PostMapping("/analyze/text")
     public ResponseEntity<?> analyzeText(@RequestBody Map<String, String> body) {
         String text = body.get("text");
+        String engine = body.get("engine"); // "local" or "bedrock" (optional)
+        
         if (text == null || text.isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("error", "Field 'text' is required."));
         }
 
-        return runAnalysis(text, null, null);
+        return runAnalysis(text, null, null, engine);
     }
 
     /**
@@ -91,7 +93,9 @@ public class AnalysisController {
      * 4. Return result including S3 key
      */
     @PostMapping("/analyze/file")
-    public ResponseEntity<?> analyzeFile(@RequestParam("file") MultipartFile file) {
+    public ResponseEntity<?> analyzeFile(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "engine", required = false) String engine) {
         if (file.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("error", "Uploaded file is empty."));
         }
@@ -104,7 +108,7 @@ public class AnalysisController {
             // Upload original file to S3
             String s3Key = s3Service.uploadDocument(file);
 
-            return runAnalysis(text, file.getOriginalFilename(), s3Key);
+            return runAnalysis(text, file.getOriginalFilename(), s3Key, engine);
 
         } catch (Exception e) {
             return ResponseEntity.internalServerError()
@@ -182,7 +186,7 @@ public class AnalysisController {
 
     // ── Private Helpers ───────────────────────────────────────────────────────
 
-    private ResponseEntity<?> runAnalysis(String text, String fileName, String s3Key) {
+    private ResponseEntity<?> runAnalysis(String text, String fileName, String s3Key, String engine) {
         // 1. Save request
         AnalysisRequest req = new AnalysisRequest();
         req.setInputText(text);
@@ -192,8 +196,8 @@ public class AnalysisController {
         req = requestRepo.save(req);
 
         try {
-            // 2. Call Python AI service
-            Map<String, Object> aiResponse = aiClient.analyze(text);
+            // 2. Call Python AI service with engine choice
+            Map<String, Object> aiResponse = aiClient.analyze(text, engine);
 
             // 3. Save result
             AnalysisResult result = new AnalysisResult();

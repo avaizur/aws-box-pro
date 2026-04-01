@@ -11,6 +11,7 @@ export default function App() {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [engine, setEngine] = useState('local');
 
   // ── Submit text for analysis ──────────────────────────────────
   const handleTextSubmit = async (e) => {
@@ -21,7 +22,7 @@ export default function App() {
       const res = await fetch(`${API_BASE}/analyze/text`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: inputText }),
+        body: JSON.stringify({ text: inputText, engine }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Analysis failed');
@@ -38,6 +39,7 @@ export default function App() {
     try {
       const form = new FormData();
       form.append('file', selectedFile);
+      form.append('engine', engine);
       const res = await fetch(`${API_BASE}/analyze/file`, { method: 'POST', body: form });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'File analysis failed');
@@ -105,6 +107,16 @@ export default function App() {
                     onChange={e => setSelectedFile(e.target.files[0])}
                     style={{ display: 'none' }} />
                 </label>
+              </div>
+
+              <div className="engine-selector">
+                <label>🧠 Intelligence Engine:</label>
+                <div className="engine-options">
+                  <button type="button" className={`engine-btn ${engine === 'local' ? 'active' : ''}`}
+                    onClick={() => setEngine('local')}>Local (Phase 1)</button>
+                  <button type="button" className={`engine-btn ${engine === 'bedrock' ? 'active' : ''}`}
+                    onClick={() => setEngine('bedrock')}>AWS Bedrock (Phase 2)</button>
+                </div>
               </div>
 
               {selectedFile ? (

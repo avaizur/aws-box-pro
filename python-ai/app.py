@@ -1,46 +1,23 @@
-"""
-AI Document Analysis Service — Python Flask AI Backend
-=======================================================
-Runs on port 5000. Nginx routes /ai/* to this service.
-Called exclusively by the Java API (not directly by the frontend).
-
-Endpoints:
-  POST /analyze   → Analyse text: returns summary, word_count, classification
-  GET  /health    → Health check
-
-API Contract with Java API:
-  Request:
-    POST /analyze
-    Content-Type: application/json
-    { "text": "Your document content..." }
-
-  Response:
-    {
-      "summary":        "Short summary of the document...",
-      "word_count":     142,
-      "classification": "technical",
-      "processing_ms":  18
-    }
-
-Classification labels:
-  - "technical"   → contains code, specs, or engineering terminology
-  - "legal"       → contracts, terms, compliance language
-  - "financial"   → numbers, budgets, reports, revenue
-  - "general"     → everything else
-"""
-
 import os
-import re
 import time
+import json
+import boto3
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
+
+# Initialize Bedrock client
+# Note: AWS credentials are provided by the EC2 IAM Role automatically
+bedrock = boto3.client(
+    service_name='bedrock-runtime', 
+    region_name=os.environ.get("AWS_REGION", "eu-west-2")
+)
 
 # ── Health Check ─────────────────────────────────────────────────────────────
 
 @app.route("/health")
 def health():
-    return jsonify({"status": "ok", "service": "python-ai", "version": "1.0.0"})
+    return jsonify({"status": "ok", "service": "python-ai (bedrock-enabled)", "version": "2.0.0"})
 
 
 # ── Main Analysis Endpoint ────────────────────────────────────────────────────
@@ -49,117 +26,146 @@ def health():
 def analyze():
     """
     Receives text from the Java API.
-    Returns: summary, word_count, classification, processing_ms.
+    Returns: summary, word_count, classification, pii_entities, processing_ms.
+    
+    Request JSON: { "text": "...", "engine": "local" | "bedrock" }
     """
     data = request.get_json(force=True)
     text = data.get("text", "").strip()
+    # Default to 'local' to keep costs zero unless explicitly asked
+    engine = data.get("engine", "local").lower()
 
     if not text:
         return jsonify({"error": "Field 'text' is required and cannot be empty."}), 400
 
     start_time = time.time()
+    word_count = len(text.split())
+    
+    try:
+        if engine == "bedrock":
+            # Power Phase 2: Claude 3 via Bedrock
+            analysis = _analyze_with_bedrock(text)
+            engine_name = "aws-bedrock-claude-3-haiku"
+        else:
+            # Original Phase 1: Local keyword/regex logic
+            analysis = _analyze_locally(text)
+            engine_name = "local-keyword-engine"
+        
+        processing_ms = int((time.time() - start_time) * 1000)
 
-    word_count = _count_words(text)
-    classification = _classify(text)
-    summary = _summarize(text)
-    pii_entities = _detect_pii(text)
+        return jsonify({
+            "summary":        analysis.get("summary"),
+            "word_count":     word_count,
+            "classification": analysis.get("classification"),
+            "pii_entities":   analysis.get("pii_entities", []),
+            "processing_ms":  processing_ms,
+            "engine":         engine_name
+        })
 
-    processing_ms = int((time.time() - start_time) * 1000)
-
-    return jsonify({
-        "summary":        summary,
-        "word_count":     word_count,
-        "classification": classification,
-        "pii_entities":   pii_entities,
-        "processing_ms":  processing_ms,
-    })
+    except Exception as e:
+        app.logger.error(f"Analysis failed (Engine: {engine}): {str(e)}")
+        return jsonify({"error": f"Analysis failed: {str(e)}"}), 500
 
 
-# ── Analysis Functions ────────────────────────────────────────────────────────
+# ── Engine 1: Local Logic (Phase 1) ──────────────────────────────────────────
 
-def _count_words(text: str) -> int:
-    """Count words by splitting on whitespace."""
-    return len(text.split())
-
-
-def _classify(text: str) -> str:
-    """
-    Keyword-based document classification.
-    Simple and transparent — easy to explain and extend.
-    Replace with an ML model in a future phase.
-    """
+def _analyze_locally(text: str) -> dict:
+    import re
     text_lower = text.lower()
-
-    technical_keywords = [
-        "function", "class", "algorithm", "api", "server", "database",
-        "software", "hardware", "network", "code", "system", "protocol",
-        "interface", "module", "deployment", "infrastructure", "endpoint"
-    ]
-    legal_keywords = [
-        "agreement", "contract", "clause", "liability", "indemnify",
-        "jurisdiction", "breach", "party", "parties", "terms", "conditions",
-        "obligations", "compliance", "regulation", "pursuant", "herein"
-    ]
-    financial_keywords = [
-        "revenue", "profit", "loss", "budget", "forecast", "invoice",
-        "payment", "tax", "expense", "cost", "balance", "financial",
-        "quarterly", "annual report", "earnings", "roi", "cashflow"
-    ]
-
+    
+    # 1. Classification
+    tech_kw = ["api", "server", "code", "system", "infrastructure"]
+    legal_kw = ["agreement", "contract", "liability", "clause"]
+    fin_kw = ["revenue", "profit", "budget", "invoice"]
+    
     scores = {
-        "technical":  sum(1 for kw in technical_keywords  if kw in text_lower),
-        "legal":      sum(1 for kw in legal_keywords      if kw in text_lower),
-        "financial":  sum(1 for kw in financial_keywords  if kw in text_lower),
+        "technical": sum(1 for kw in tech_kw if kw in text_lower),
+        "legal":     sum(1 for kw in legal_kw if kw in text_lower),
+        "financial": sum(1 for kw in fin_kw if kw in text_lower),
     }
-
     best = max(scores, key=scores.get)
-    return best if scores[best] > 0 else "general"
+    classification = best if scores[best] > 0 else "general"
 
-
-def _summarize(text: str, max_sentences: int = 3) -> str:
-    """
-    Extractive summarisation — picks the first N sentences.
-    A simple, explainable baseline. Replace with an LLM/ML model later.
-    """
-    # Split into sentences
+    # 2. Summary (First 3 sentences)
     sentences = re.split(r'(?<=[.!?])\s+', text.strip())
-    sentences = [s.strip() for s in sentences if len(s.strip()) > 10]
+    summary = " ".join(sentences[:3]) if sentences else "No content."
 
-    if not sentences:
-        return "No meaningful content found to summarise."
-
-    # Take up to max_sentences
-    selected = sentences[:max_sentences]
-    summary = " ".join(selected)
-
-    # Truncate if very long (safety net)
-    if len(summary) > 500:
-        summary = summary[:497] + "..."
-
-    return summary
-
-
-def _detect_pii(text: str) -> list:
-    """
-    Identifies sensitive Personally Identifiable Information (PII).
-    Returns a list of detected entity types and counts.
-    """
+    # 3. PII (Regex)
     patterns = {
-        "email":       r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}',
-        "phone":       r'(?:\+44|0)7\d{9}|\b\d{3}[-.\s]??\d{3}[-.\s]??\d{4}\b',
-        "credit_card": r'\b(?:\d{4}[ -]?){3}\d{4}\b',
+        "email": r'[a-zA-Z0-9._%+-]+@+[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}',
+        "phone": r'\b\d{3}[-.\s]??\d{3}[-.\s]??\d{4}\b'
     }
-
-    results = []
+    pii = []
     for label, pattern in patterns.items():
         matches = re.findall(pattern, text)
         if matches:
-            results.append({
-                "type": label,
-                "count": len(matches)
-            })
+            pii.append({"type": label, "count": len(matches)})
 
-    return results
+    return {
+        "summary": summary,
+        "classification": classification,
+        "pii_entities": pii
+    }
+
+
+# ── Engine 2: Bedrock Logic (Phase 2) ────────────────────────────────────────
+    """
+    Calls Claude 3 via Bedrock to perform multi-task analysis in one pass.
+    """
+    # Truncate text if too long (safety for token limits/cost)
+    max_input_length = 30000 
+    truncated_text = text[:max_input_length]
+
+    prompt = f"""
+    Analyze the following document text and provide a structured JSON response.
+    
+    Tasks:
+    1. Summarize the content in exactly 3 clear, professional sentences.
+    2. Classify the document as one of: 'technical', 'legal', 'financial', or 'general'.
+    3. Detect PII entities including 'email', 'phone', and 'credit_card'. 
+       Return them as a list of objects with 'type' and 'count'.
+
+    Text to analyze:
+    {truncated_text}
+
+    Response must be valid JSON only with no preamble:
+    {{
+      "summary": "...",
+      "classification": "...",
+      "pii_entities": [ {{"type": "...", "count": 0}}, ... ]
+    }}
+    """
+    
+    body = json.dumps({
+        "anthropic_version": "bedrock-2023-05-31",
+        "max_tokens": 1000,
+        "temperature": 0,
+        "messages": [
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ]
+    })
+    
+    response = bedrock.invoke_model(
+        modelId='anthropic.claude-3-haiku-20240307-v1:0',
+        body=body
+    )
+    
+    response_body = json.loads(response.get('body').read())
+    result_text = response_body['content'][0]['text']
+    
+    # Try to parse the JSON output
+    try:
+        return json.loads(result_text)
+    except json.JSONDecodeError:
+        # Handle cases where Claude might add conversational text
+        start = result_text.find('{')
+        end = result_text.rfind('}') + 1
+        if start != -1 and end != 0:
+            return json.loads(result_text[start:end])
+        raise ValueError("Could not parse JSON from Bedrock response")
 
 
 # ── Entry Point ───────────────────────────────────────────────────────────────
