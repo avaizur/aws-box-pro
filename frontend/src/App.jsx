@@ -12,6 +12,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [engine, setEngine] = useState('local');
+  const [showSplash, setShowSplash] = useState(true);
 
   // ── Submit text for analysis ──────────────────────────────────
   const handleTextSubmit = async (e) => {
@@ -71,6 +72,10 @@ export default function App() {
       alert(`Exported to S3!\nKey: ${data.s3Key}`);
     } catch { alert('Export failed.'); }
   };
+
+  if (showSplash) {
+    return <SplashPage onEnter={() => setShowSplash(false)} />;
+  }
 
   return (
     <div className="app">
@@ -185,6 +190,30 @@ export default function App() {
           </div>
         )}
       </main>
+    </div>
+  );
+}
+
+function SplashPage({ onEnter }) {
+  return (
+    <div className="splash-page">
+      <div className="splash-bg-glow" />
+      <div className="splash-content">
+        <span className="splash-logo">🔍</span>
+        <h1 className="splash-title">Unlock Document Intelligence</h1>
+        <p className="splash-description">
+          The next generation of AI-powered document analysis. 
+          Extract insights, detect sensitivity, and automate your workflow with AWS Bedrock integration.
+        </p>
+        <div className="splash-actions">
+          <button className="btn-hero" onClick={onEnter}>
+            Analyse Documents Now
+          </button>
+        </div>
+      </div>
+      <div className="splash-footer">
+        Powered by AWS Bedrock & React · London Region
+      </div>
     </div>
   );
 }

@@ -1,0 +1,13 @@
+ANNUAL INFRASTRUCTURE BUDGET REVIEW - 2026
+-----------------------------------------
+Author: Johnathan Doe (j.doe@example.com)
+Location: 456 Tech Lane, London SW1A 1AA
+
+EXECUTIVE SUMMARY:
+We need to allocate £50,000 for our new AWS architecture. This budget will cover 
+EC2 t3.micro instances, S3 storage, and Bedrock API costs. While the software 
+engineering team requested more servers, we must prioritize the financial 
+stability of the project first. 
+
+Please review the attached invoice (ID: INV-2026-001) for the server maintenance 
+costs before our next meeting.
