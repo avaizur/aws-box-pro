@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import './App.css';
+import { APP_MODE } from './config';
 
 const API_BASE = '/api';
 
@@ -73,8 +74,16 @@ export default function App() {
     } catch { alert('Export failed.'); }
   };
 
+  const handleEnter = () => {
+    if (APP_MODE === 'SPLASH_ONLY') {
+      alert("The AI Document Analysis Pilot is currently in branding/review mode. Full backend integration is staged and will be unlocked for the next phase of testing.");
+    } else {
+      setShowSplash(false);
+    }
+  };
+
   if (showSplash) {
-    return <SplashPage onEnter={() => setShowSplash(false)} />;
+    return <SplashPage onEnter={handleEnter} />;
   }
 
   return (
