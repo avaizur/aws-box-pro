@@ -66,6 +66,12 @@
             <version>2.25.6</version>
         </dependency>
 
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>dynamodb</artifactId>
+            <version>2.25.6</version>
+        </dependency>
+
         <!-- Jackson (JSON) — included via spring-web, explicit for clarity -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>

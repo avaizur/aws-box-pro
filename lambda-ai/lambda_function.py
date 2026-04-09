@@ -7,7 +7,7 @@ import re
 # Initialize Bedrock client
 bedrock = boto3.client(
     service_name='bedrock-runtime', 
-    region_name=os.environ.get("AWS_REGION", "eu-west-2")
+    region_name=os.environ.get("APP_AWS_REGION", "eu-west-2")
 )
 
 def lambda_handler(event, context):

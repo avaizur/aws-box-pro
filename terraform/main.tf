@@ -111,6 +111,22 @@ resource "aws_iam_role_policy" "ec2_s3_policy" {
         ]
         Resource = "arn:aws:bedrock:*:*:foundation-model/*"
       },
+      # Allow DynamoDB access
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:PutItem",
+          "dynamodb:GetItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:Query",
+          "dynamodb:Scan",
+          "dynamodb:DeleteItem"
+        ]
+        Resource = [
+          aws_dynamodb_table.analysis_requests.arn,
+          "${aws_dynamodb_table.analysis_requests.arn}/*"
+        ]
+      },
       # Optional: allow CloudWatch Logs agent
       {
         Effect = "Allow"
@@ -132,7 +148,7 @@ resource "aws_iam_instance_profile" "ec2_profile" {
 }
 
 ##############################################################
-# S3 BUCKET — Uploads, exports, backups
+# S3 BUCKET — One Bucket for Everything (Web, Uploads, Exports)
 ##############################################################
 
 resource "aws_s3_bucket" "app_bucket" {
@@ -143,14 +159,64 @@ resource "aws_s3_bucket" "app_bucket" {
   }
 }
 
-# Block all public access — content is only accessed by the EC2 IAM role
+# 1. Enable Static Website Hosting
+resource "aws_s3_bucket_website_configuration" "app_bucket_website" {
+  bucket = aws_s3_bucket.app_bucket.id
+
+  index_document {
+    suffix = "index.html"
+  }
+
+  error_document {
+    key = "index.html"
+  }
+}
+
+# 2. Public Access Block — MUST allow public policies for the Web folder
 resource "aws_s3_bucket_public_access_block" "app_bucket_block" {
   bucket = aws_s3_bucket.app_bucket.id
 
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
+  block_public_acls       = false
+  block_public_policy     = false
+  ignore_public_acls      = false
+  restrict_public_buckets = false
+}
+
+# 3. Bucket Policy — Public for /web/*, Private for everything else
+resource "aws_s3_bucket_policy" "allow_public_web" {
+  bucket = aws_s3_bucket.app_bucket.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "PublicReadWebFolder"
+        Effect    = "Allow"
+        Principal = "*"
+        Action    = "s3:GetObject"
+        Resource  = "${aws_s3_bucket.app_bucket.arn}/web/*"
+      }
+    ]
+  })
+  depends_on = [aws_s3_bucket_public_access_block.app_bucket_block]
+}
+
+##############################################################
+# DYNAMODB — The Serverless Database (Pilot: $0 cost)
+##############################################################
+
+resource "aws_dynamodb_table" "analysis_requests" {
+  name           = "${var.project_name}-requests"
+  billing_mode   = "PAY_PER_REQUEST" 
+  hash_key       = "requestId"
+
+  attribute {
+    name = "requestId"
+    type = "S"
+  }
+
+  tags = {
+    Name = "${var.project_name}-table"
+  }
 }
 
 # Optional: auto-delete files after 90 days to save costs during pilot

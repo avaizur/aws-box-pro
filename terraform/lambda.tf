@@ -66,7 +66,7 @@ resource "aws_lambda_function" "ai_analyzer" {
 
   environment {
     variables = {
-      AWS_REGION = var.aws_region
+      APP_AWS_REGION = var.aws_region
     }
   }
 
